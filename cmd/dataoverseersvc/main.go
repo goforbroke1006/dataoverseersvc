@@ -9,6 +9,8 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"runtime"
+	"time"
 
 	kitlog "github.com/go-kit/kit/log"
 	"github.com/go-redis/redis"
@@ -18,8 +20,6 @@ import (
 	"github.com/goforbroke1006/dataoverseersvc/mailing"
 	"github.com/goforbroke1006/dataoverseersvc/repo"
 	"github.com/goforbroke1006/dataoverseersvc/validation"
-	"runtime"
-	"time"
 )
 
 func init() {
