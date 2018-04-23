@@ -19,6 +19,7 @@ import (
 	"github.com/goforbroke1006/dataoverseersvc/repo"
 	"github.com/goforbroke1006/dataoverseersvc/validation"
 	"runtime"
+	"time"
 )
 
 func init() {
@@ -72,7 +73,8 @@ func main() {
 	)
 	db, err := sql.Open(cfg.Connection.Driver, connStr)
 	if nil != err {
-		errCh <- err
+		logger.Log("err", err.Error())
+		os.Exit(1)
 	}
 	defer db.Close()
 
@@ -93,13 +95,15 @@ func main() {
 	}
 
 	redisKV := redis.NewClient(&redis.Options{
-		Addr:     fmt.Sprintf("%s:%d", cfg.Redis.Host, cfg.Redis.Port),
-		Password: cfg.Redis.Password,
-		DB:       0, // use default DB
+		Addr:        fmt.Sprintf("%s:%d", cfg.Redis.Host, cfg.Redis.Port),
+		Password:    cfg.Redis.Password,
+		DB:          0, // use default DB
+		DialTimeout: 5 * time.Second,
 	})
 	_, err = redisKV.Ping().Result()
 	if nil != err {
-		errCh <- err
+		logger.Log("err", err.Error())
+		os.Exit(1)
 	}
 
 	ctx := context.Background()
@@ -144,7 +148,7 @@ func runTask(ctx context.Context, task config.Task) {
 	rows := make(chan sqlContent, *tps)
 	go func() {
 		for {
-			c, err := findRowsForTask(ctx, rows, stmt, last)
+			c, err := findRowsForTask(ctx, rows, stmt, task.FieldId, last)
 			if nil != err {
 				logger.Log("err", err.Error())
 			} else if c > 0 {
@@ -157,11 +161,11 @@ func runTask(ctx context.Context, task config.Task) {
 	semaphore := make(chan bool, maxStreams)
 	for {
 		semaphore <- true
-		go validateRow(semaphore, ctx, reports, <-rows, last)
+		go validateRow(semaphore, ctx, reports, <-rows)
 	}
-	//for i := 0; i < cap(semaphore); i++ {
-	//	semaphore <- true
-	//}
+	for i := 0; i < cap(semaphore); i++ {
+		semaphore <- true
+	}
 }
 
 func sendReport(ctx context.Context, rc chan string) {
@@ -187,6 +191,7 @@ func findRowsForTask(
 	ctx context.Context,
 	c chan sqlContent,
 	stmt *sql.Stmt,
+	idField string,
 	lastID *int64,
 ) (int, error) {
 	logger := ctx.Value("logger").(kitlog.Logger)
@@ -215,11 +220,13 @@ func findRowsForTask(
 		}
 		c <- res
 		counter++
+
+		*lastID = res[idField].(int64)
 	}
 	return counter, nil
 }
 
-func validateRow(sem <-chan bool, ctx context.Context, reports chan string, c sqlContent, lastCheckedId *int64) {
+func validateRow(sem <-chan bool, ctx context.Context, reports chan string, c sqlContent) {
 	defer func() { <-sem }()
 
 	logger := ctx.Value("logger").(kitlog.Logger)
@@ -227,15 +234,12 @@ func validateRow(sem <-chan bool, ctx context.Context, reports chan string, c sq
 	task := ctx.Value("task").(config.Task)
 
 	id := c[task.FieldId].(int64)
+
 	for k, v := range c {
 		if ok, err := validationHub.Validate(k, v); !ok {
 			reports <- fmt.Sprintf("err - %s [%d]", err.Error(), id)
 			logger.Log("err", err.Error(), "id", id)
 		}
-	}
-
-	if id > *lastCheckedId {
-		*lastCheckedId = id
 	}
 }
 

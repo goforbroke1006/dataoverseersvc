@@ -92,6 +92,7 @@ func main() {
 		log.Println(fmt.Sprintf("Add device # %d for user # %d", deviceId, userId))
 	}
 
+	sem := make(chan bool, 8)
 	metricStmt, err := db.Prepare("INSERT INTO device_metrics(" +
 		"device_id, " +
 		"metric_1, metric_2, metric_3, metric_4, metric_5, " +
@@ -102,20 +103,24 @@ func main() {
 		"$7, $8" +
 		")")
 	for {
-		deviceId := devices[rand.Int()%len(devices)]
-		_, err := metricStmt.Exec(deviceId,
-			rand.Int()%100+1,
-			rand.Int()%100+1,
-			rand.Int()%100+1,
-			rand.Int()%100+1,
-			rand.Int()%100+1,
-			time.Now().UTC(),
-			time.Now().UTC(),
-		)
-		if err != nil {
-			log.Fatal(err)
-		}
-		time.Sleep(50 * time.Millisecond)
-		log.Print(". ")
+		sem <- true
+		go func() {
+			deviceId := devices[rand.Int()%len(devices)]
+			_, err := metricStmt.Exec(deviceId,
+				rand.Int()%100+1,
+				rand.Int()%100+1,
+				rand.Int()%100+1,
+				rand.Int()%100+1,
+				rand.Int()%100+1,
+				time.Now().UTC(),
+				time.Now().UTC(),
+			)
+			if err != nil {
+				log.Fatal(err)
+			}
+			time.Sleep(10 * time.Millisecond)
+			log.Print(". ")
+			<-sem
+		}()
 	}
 }
