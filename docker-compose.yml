@@ -1,0 +1,22 @@
+version: '2'
+
+services:
+  daemon:
+    build: .
+#    command: "go run /code/cmd/dataoverseersvc/main.go -log-file=/code/daemon.log"
+    volumes:
+      - ./:/code
+  db:
+    image: postgres:9.6
+    ports:
+      - "45433:5432"
+    environment:
+      POSTGRES_USER: "root"
+      POSTGRES_PASSWORD: "12345678"
+    volumes:
+      - ./:/code
+
+  redis:
+    image: redis
+    ports:
+      - "46380:6379"

@@ -1,0 +1,5 @@
+.idea
+vendor
+*.log
+go_build_main_go
+config.yml

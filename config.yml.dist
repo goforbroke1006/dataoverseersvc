@@ -1,0 +1,56 @@
+admin_email: sergey.cherkasov@devim.team
+connection:
+  driver: postgres
+  host: localhost
+  port: 45433
+  name: metrics_iterator
+  user: root
+  pass: 12345678
+mailer:
+  type: gmail
+  user: yourAddress@gmail.com
+  pass: yourPass
+redis:
+  host: localhost
+  port: 46380
+  pass: ""
+timeout: 200
+tasks:
+  - query: 'SELECT * FROM device_metrics WHERE id > $1 ORDER BY id ASC LIMIT 1000'
+    fieldId: 'id'
+    subjects:
+      - type: in-range
+        columns: ['metric_1', 'metric_2', 'metric_3']
+        params:
+          min: 1
+          max: 100
+      - type: in-list
+        columns: ['metric_4']
+        params:
+          list:
+            - "320"
+            - "360"
+            - "375"
+            - "412"
+            - "414"
+            - "480"
+            - "540"
+            - "640"
+            - "720"
+            - "1080"
+            - "1280"
+            - "1920"
+      - type: in-list
+        columns: ['metric_5']
+        params:
+          list:
+            - "360"
+            - "534"
+            - "568"
+            - "640"
+            - "667"
+            - "732"
+            - "736"
+            - "854"
+            - "1280"
+            - "1920"
