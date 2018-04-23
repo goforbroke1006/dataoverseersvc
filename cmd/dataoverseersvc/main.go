@@ -8,8 +8,8 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"syscall"
 	"runtime"
+	"syscall"
 	"time"
 
 	kitlog "github.com/go-kit/kit/log"
@@ -126,7 +126,6 @@ func runTask(ctx context.Context, task config.Task) {
 	logger := ctx.Value("logger").(kitlog.Logger)
 	db := ctx.Value("db").(*sql.DB)
 	tps := ctx.Value("tps").(*uint)
-	//rsize := ctx.Value("rsize").(*int)
 
 	reports := make(chan string, 20)
 	go sendReport(ctx, reports)
