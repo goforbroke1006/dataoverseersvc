@@ -11,9 +11,9 @@ import (
 
 	_ "github.com/lib/pq"
 
-	"bitbucket.org/goforbroke1006/dataoverseersvc/config"
-	"bitbucket.org/goforbroke1006/dataoverseersvc/repo"
-	"bitbucket.org/goforbroke1006/dataoverseersvc/util/rand"
+	"github.com/goforbroke1006/dataoverseersvc/config"
+	"github.com/goforbroke1006/dataoverseersvc/repo"
+	"github.com/goforbroke1006/dataoverseersvc/util/rand"
 )
 
 func main() {
