@@ -113,7 +113,7 @@ func main() {
 		go svc.CollectReport(reports, *reportSize, mail)
 		go svc.SendReport(mail, cfg.AdminEmail)
 
-		metrics := make(chan dataoverseersvc.SqlContent, *tps)
+		metrics := make(chan dataoverseersvc.SqlContent, runtime.NumCPU() * 4)
 		lastId := int64(0)
 		go func() {
 			for {
