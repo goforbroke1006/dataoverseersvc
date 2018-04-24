@@ -3,9 +3,9 @@ version: '2'
 services:
   daemon:
     build: .
-#    command: "go run /code/cmd/dataoverseersvc/main.go -log-file=/code/daemon.log"
+    command: "bash /go/src/github.com/goforbroke1006/dataoverseersvc/bin/run.sh"
     volumes:
-      - ./:/code
+      - ./:/go/src/github.com/goforbroke1006/dataoverseersvc/
   db:
     image: postgres:9.6
     ports:

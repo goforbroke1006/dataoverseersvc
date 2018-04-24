@@ -17,8 +17,9 @@ type connection struct {
 }
 
 type Task struct {
-	Query   string `yaml:"query"`
-	FieldId string `yaml:"fieldId"`
+	Query    string `yaml:"query"`
+	FieldId  string `yaml:"fieldId"`
+	KVField  string `yaml:"keyValueField"`
 	Subjects []struct {
 		Type    string                 `yaml:"type"`
 		Columns []string               `yaml:"columns"`
@@ -27,11 +28,11 @@ type Task struct {
 }
 
 type Configuration struct {
-	AdminEmail string `yaml:"admin_email"`
+	AdminEmail string     `yaml:"admin_email"`
 	Connection connection `yaml:"connection"`
 	Timeout    int64      `yaml:"timeout"`
 	Tasks      []Task     `yaml:"tasks"`
-	Mailer struct {
+	Mailer     struct {
 		Type     string
 		Host     *string `yaml:""`
 		Port     *int    `yaml:""`
@@ -41,7 +42,7 @@ type Configuration struct {
 	Redis struct {
 		Host     string `yaml:""`
 		Port     int    `yaml:""`
-		Password string  `yaml:"pass"`
+		Password string `yaml:"pass"`
 	} `yaml:"redis"`
 }
 
