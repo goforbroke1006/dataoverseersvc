@@ -112,7 +112,7 @@ func main() {
 			go runTask(ctx, task)
 		}*/
 
-	svc := dataoverseersvc.NewDataOverseer(&logger, db, redisKV, mailer)
+	svc := dataoverseersvc.NewDataOverseer(logger, db, redisKV, mailer)
 
 	for _, task := range cfg.Tasks {
 		validationHub := validation.ValidationHub{}
@@ -120,11 +120,11 @@ func main() {
 			validationHub.Setup(s.Type, s.Columns, s.Params)
 		}
 
-		reports := make(chan string, *tps)
+		reports := make(chan string, (*reportSize) * 100)
 
-		reportMsg := make(chan string, (*tps)*10)
-		go svc.CollectReport(reports, *reportSize, reportMsg)
-		go svc.SendReport(reportMsg, cfg.AdminEmail)
+		mail := make(chan string, 100)
+		go svc.CollectReport(reports, *reportSize, mail)
+		go svc.SendReport(mail, cfg.AdminEmail)
 
 		metrics := make(chan dataoverseersvc.SqlContent, *tps)
 		lastId := int64(0)
@@ -132,10 +132,12 @@ func main() {
 			for {
 				count, err := svc.LoadNextMetricsPortion(
 					task.Query, *tps, &lastId, task.FieldId, metrics)
-				if nil!=err {
+				if nil != err {
 					logger.Log("err", err.Error())
 				}
-				logger.Log("msg", fmt.Sprintf("load new %d rows", count))
+				if count > 0 {
+					logger.Log("msg", fmt.Sprintf("load new %d rows", count))
+				}
 			}
 		}()
 		go func() {

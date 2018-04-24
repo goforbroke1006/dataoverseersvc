@@ -46,10 +46,10 @@ func (svc dataOverseer) CollectReport(queue <-chan string, portionSize uint, out
 	}
 }
 
-func (svc dataOverseer) SendReport(report <-chan string, adminEmail string) error {
+func (svc dataOverseer) SendReport(mail <-chan string, adminEmail string) error {
 	for {
-		svc.mailer.Send(adminEmail, "Metrics report", <-report)
-		svc.logger.Log("msg", "send errors report to "+adminEmail)
+		svc.mailer.Send(adminEmail, "Metrics mail", <-mail)
+		svc.logger.Log("msg", "send errors mail to "+adminEmail)
 	}
 }
 
@@ -57,7 +57,7 @@ func (svc dataOverseer) LoadNextMetricsPortion(
 	query string, limit uint, lastID *int64, idFiledName string, queue chan<- SqlContent,
 ) (count uint, err error) {
 	stmt, err := svc.db.Prepare(query)
-	rows, err := stmt.Query(*lastID)
+	rows, err := stmt.Query(lastID)
 	if nil != err {
 		return 0, err
 	}
@@ -99,7 +99,7 @@ func (svc dataOverseer) StoreLastAlert(deviceId, message string) error {
 }
 
 func NewDataOverseer(
-	logger *kitlog.Logger,
+	logger kitlog.Logger,
 	db *sql.DB,
 	redis *redis.Client,
 	mailer *mailing.Mailer,
