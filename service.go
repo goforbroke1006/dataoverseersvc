@@ -4,13 +4,13 @@ import (
 	"database/sql"
 	"fmt"
 
+	"crypto/md5"
+	"encoding/hex"
 	kitlog "github.com/go-kit/kit/log"
 	"github.com/go-redis/redis"
 	"github.com/goforbroke1006/dataoverseersvc/mailing"
-	"github.com/goforbroke1006/dataoverseersvc/validation"
 	"github.com/goforbroke1006/dataoverseersvc/repo"
-	"crypto/md5"
-	"encoding/hex"
+	"github.com/goforbroke1006/dataoverseersvc/validation"
 	"time"
 )
 
@@ -106,7 +106,7 @@ func (svc dataOverseer) ValidateData(rules validation.ValidationHub, c SqlConten
 func (svc dataOverseer) StoreLastAlert(deviceId, message string) error {
 	return svc.redis.Set(
 		getMD5Hash(deviceId),
-		message, 15*time.Minute,
+		"["+deviceId+"] "+message, 15*time.Minute,
 	).Err()
 }
 
