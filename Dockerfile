@@ -20,4 +20,4 @@ ENV PATH    "$PATH:/go/bin"
 
 RUN go get -u github.com/golang/dep/cmd/dep
 
-WORKDIR /code
+WORKDIR /go/src/
