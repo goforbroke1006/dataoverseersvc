@@ -3,7 +3,7 @@ version: '2'
 services:
   daemon:
     build: .
-#    command: "go run /code/cmd/dataoverseersvc/main.go -log-file=/code/daemon.log"
+    command: "go run /code/cmd/dataoverseersvc/main.go -log-file=/code/daemon.log"
     volumes:
       - ./:/code
   db:
