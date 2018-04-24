@@ -27,5 +27,5 @@ func (v InListValidator) Check(name string, value interface{}) (bool, error) {
 			return true, nil
 		}
 	}
-	return false, fmt.Errorf("%s : unexpected value %v", name, value)
+	return false, fmt.Errorf("%s: unexpected value %v", name, value)
 }

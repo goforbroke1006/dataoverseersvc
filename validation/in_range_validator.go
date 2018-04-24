@@ -15,21 +15,11 @@ func (v InRangeValidator) GetName() string {
 
 func (v *InRangeValidator) Configure(cfg map[string]interface{}) error {
 	if min, ok := cfg["min"]; ok {
-		//f, err := strconv.ParseFloat(min.(string), 64)
-		//if nil != err {
-		//	return fmt.Errorf("min parameter invalid value")
-		//}
-		//v.min = f
 		v.min = float64(min.(int))
 	} else {
 		return fmt.Errorf("min parameter expected")
 	}
 	if max, ok := cfg["max"]; ok {
-		//f, err := strconv.ParseFloat(max.(string), 64)
-		//if nil != err {
-		//	return fmt.Errorf("max parameter invalid value")
-		//}
-		//v.max = f
 		v.max = float64(max.(int))
 	} else {
 		return fmt.Errorf("max parameter expected")
@@ -50,7 +40,7 @@ func (v InRangeValidator) Check(name string, value interface{}) (bool, error) {
 	}
 
 	if val < v.min || v.max < val {
-		return false, fmt.Errorf("%s : value %v is not in range %f..%f",
+		return false, fmt.Errorf("%s: value %v is not in range %f..%f",
 			name, val, v.min, v.max)
 	}
 

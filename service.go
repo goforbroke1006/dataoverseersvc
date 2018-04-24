@@ -9,6 +9,9 @@ import (
 	"github.com/goforbroke1006/dataoverseersvc/mailing"
 	"github.com/goforbroke1006/dataoverseersvc/validation"
 	"github.com/goforbroke1006/dataoverseersvc/repo"
+	"crypto/md5"
+	"encoding/hex"
+	"time"
 )
 
 type SqlContent map[string]interface{}
@@ -18,7 +21,7 @@ type DataOverseer interface {
 	SendReport(report <-chan string, adminEmail string) error
 	LoadNextMetricsPortion(query string, limit uint, lastID *int64, idFiledName string,
 		queue chan<- SqlContent) (uint, error)
-	ValidateData(rules validation.ValidationHub, c SqlContent, out chan<- string) error
+	ValidateData(rules validation.ValidationHub, c SqlContent, kvKey string, out chan<- string) error
 	StoreLastAlert(deviceId, message string) error
 }
 
@@ -85,17 +88,26 @@ func (svc dataOverseer) LoadNextMetricsPortion(
 	return count, nil
 }
 
-func (svc dataOverseer) ValidateData(rules validation.ValidationHub, c SqlContent, out chan<- string) error {
+func (svc dataOverseer) ValidateData(rules validation.ValidationHub, c SqlContent, kvKey string, out chan<- string) error {
+	alert := ""
 	for column, value := range c {
 		if ok, err := rules.Validate(column, value); !ok {
 			out <- err.Error()
+			alert = alert + err.Error() + " ; "
 		}
+	}
+	if len(alert) > 0 {
+		deviceID := c[kvKey].(int64)
+		svc.StoreLastAlert(fmt.Sprintf("%d", deviceID), alert)
 	}
 	return nil
 }
 
 func (svc dataOverseer) StoreLastAlert(deviceId, message string) error {
-	return nil
+	return svc.redis.Set(
+		getMD5Hash(deviceId),
+		message, 15*time.Minute,
+	).Err()
 }
 
 func NewDataOverseer(
@@ -110,4 +122,10 @@ func NewDataOverseer(
 		redis:  redis,
 		mailer: mailer,
 	}
+}
+
+func getMD5Hash(text string) string {
+	hasher := md5.New()
+	hasher.Write([]byte(text))
+	return hex.EncodeToString(hasher.Sum(nil))
 }

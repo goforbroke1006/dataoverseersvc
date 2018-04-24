@@ -14,10 +14,10 @@ import (
 	"github.com/go-redis/redis"
 	_ "github.com/lib/pq"
 
+	"github.com/goforbroke1006/dataoverseersvc"
 	"github.com/goforbroke1006/dataoverseersvc/config"
 	"github.com/goforbroke1006/dataoverseersvc/mailing"
 	"github.com/goforbroke1006/dataoverseersvc/validation"
-	"github.com/goforbroke1006/dataoverseersvc"
 )
 
 func init() {
@@ -107,7 +107,7 @@ func main() {
 			validationHub.Setup(s.Type, s.Columns, s.Params)
 		}
 
-		reports := make(chan string, (*reportSize) * 100)
+		reports := make(chan string, (*reportSize)*100)
 
 		mail := make(chan string, 100)
 		go svc.CollectReport(reports, *reportSize, mail)
@@ -133,7 +133,7 @@ func main() {
 				semaphore <- true
 				go func() {
 					defer func() { <-semaphore }()
-					svc.ValidateData(validationHub, cnt, reports)
+					svc.ValidateData(validationHub, cnt, task.KVField, reports)
 				}()
 			}
 		}()
