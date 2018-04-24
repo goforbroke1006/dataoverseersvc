@@ -1,11 +1,9 @@
 package main
 
 import (
-	"context"
 	"database/sql"
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"runtime"
@@ -18,22 +16,23 @@ import (
 
 	"github.com/goforbroke1006/dataoverseersvc/config"
 	"github.com/goforbroke1006/dataoverseersvc/mailing"
-	"github.com/goforbroke1006/dataoverseersvc/repo"
 	"github.com/goforbroke1006/dataoverseersvc/validation"
+	"github.com/goforbroke1006/dataoverseersvc"
 )
 
 func init() {
 	runtime.GOMAXPROCS(runtime.NumCPU() / 2)
-}
 
-type sqlContent map[string]interface{}
+	validation.Register(&validation.InListValidator{})
+	validation.Register(&validation.InRangeValidator{})
+}
 
 func main() {
 	var (
 		cfgFile    = flag.String("сfg-file", "config.yml", "-сfg-file=config.yml - configuration file")
 		logFile    = flag.String("log-file", "", "-log-file=/var/log/yourFileName.log - log file location")
 		tps        = flag.Uint("tps", 500, "-tps - average daemon load (desired number of transaction)")
-		reportSize = flag.Int("rsize", 5000, "-rsize - count of message in report")
+		reportSize = flag.Uint("rsize", 5000, "-rsize - count of message in report")
 	)
 	flag.Parse()
 
@@ -63,20 +62,17 @@ func main() {
 	logger.Log("msg", "hello")
 	defer logger.Log("msg", "goodbye")
 
-	validation.Register(&validation.InListValidator{})
-	validation.Register(&validation.InRangeValidator{})
-
 	connStr := fmt.Sprintf("%s://%s:%s@%s:%d/%s?sslmode=disable",
 		cfg.Connection.Driver,
 		cfg.Connection.Username, cfg.Connection.Password,
 		cfg.Connection.Host, cfg.Connection.Port, cfg.Connection.Name,
 	)
 	db, err := sql.Open(cfg.Connection.Driver, connStr)
+	defer db.Close()
 	if nil != err {
 		logger.Log("err", err.Error())
 		os.Exit(1)
 	}
-	defer db.Close()
 
 	var mailer *mailing.Mailer
 	if cfg.Mailer.Type == "gmail" {
@@ -85,13 +81,9 @@ func main() {
 		if nil == cfg.Mailer.Host || nil == cfg.Mailer.Port {
 			logger.Log("err", "failed to init mailer: you should define host and port")
 		}
-		mailer = mailing.NewMailer(
-			*cfg.Mailer.Host,
-			*cfg.Mailer.Port,
-			cfg.Mailer.Username,
-			cfg.Mailer.Password,
-			cfg.Mailer.Username,
-		)
+		mailer = mailing.NewMailer(*cfg.Mailer.Host, *cfg.Mailer.Port,
+			cfg.Mailer.Username, cfg.Mailer.Password,
+			cfg.Mailer.Username)
 	}
 
 	redisKV := redis.NewClient(&redis.Options{
@@ -101,27 +93,67 @@ func main() {
 		DialTimeout: 5 * time.Second,
 	})
 	_, err = redisKV.Ping().Result()
+	defer redisKV.Close()
 	if nil != err {
 		logger.Log("err", err.Error())
 		os.Exit(1)
 	}
+	/*
+		ctx := context.Background()
+		ctx = context.WithValue(ctx, "tps", tps)
+		ctx = context.WithValue(ctx, "rsize", reportSize)
+		ctx = context.WithValue(ctx, "cfg", cfg)
+		ctx = context.WithValue(ctx, "logger", logger)
+		ctx = context.WithValue(ctx, "db", db)
+		ctx = context.WithValue(ctx, "mailer", mailer)
+		ctx = context.WithValue(ctx, "redis", redisKV)
 
-	ctx := context.Background()
-	ctx = context.WithValue(ctx, "tps", tps)
-	ctx = context.WithValue(ctx, "rsize", reportSize)
-	ctx = context.WithValue(ctx, "cfg", cfg)
-	ctx = context.WithValue(ctx, "logger", logger)
-	ctx = context.WithValue(ctx, "db", db)
-	ctx = context.WithValue(ctx, "mailer", mailer)
-	ctx = context.WithValue(ctx, "redis", redisKV)
+		for _, task := range cfg.Tasks {
+			go runTask(ctx, task)
+		}*/
+
+	svc := dataoverseersvc.NewDataOverseer(&logger, db, redisKV, mailer)
 
 	for _, task := range cfg.Tasks {
-		go runTask(ctx, task)
+		validationHub := validation.ValidationHub{}
+		for _, s := range task.Subjects {
+			validationHub.Setup(s.Type, s.Columns, s.Params)
+		}
+
+		reports := make(chan string, *tps)
+
+		reportMsg := make(chan string, (*tps)*10)
+		go svc.CollectReport(reports, *reportSize, reportMsg)
+		go svc.SendReport(reportMsg, cfg.AdminEmail)
+
+		metrics := make(chan dataoverseersvc.SqlContent, *tps)
+		lastId := int64(0)
+		go func() {
+			for {
+				count, err := svc.LoadNextMetricsPortion(
+					task.Query, *tps, &lastId, task.FieldId, metrics)
+				if nil!=err {
+					logger.Log("err", err.Error())
+				}
+				logger.Log("msg", fmt.Sprintf("load new %d rows", count))
+			}
+		}()
+		go func() {
+			semaphore := make(chan bool, runtime.NumCPU())
+			for cnt := range metrics {
+				semaphore <- true
+				go func() {
+					defer func() { <-semaphore }()
+					svc.ValidateData(validationHub, cnt, reports)
+				}()
+			}
+		}()
 	}
 
 	logger.Log("exit", <-errCh)
 }
 
+/*
 func runTask(ctx context.Context, task config.Task) {
 	logger := ctx.Value("logger").(kitlog.Logger)
 	db := ctx.Value("db").(*sql.DB)
@@ -144,7 +176,7 @@ func runTask(ctx context.Context, task config.Task) {
 	ctx = context.WithValue(ctx, "validationHub", validationHub)
 	ctx = context.WithValue(ctx, "task", task)
 
-	rows := make(chan sqlContent, *tps)
+	rows := make(chan dataoverseersvc.SqlContent, *tps)
 	go func() {
 		for {
 			c, err := findRowsForTask(ctx, rows, stmt, task.FieldId, last)
@@ -188,7 +220,7 @@ func sendReport(ctx context.Context, rc chan string) {
 
 func findRowsForTask(
 	ctx context.Context,
-	c chan sqlContent,
+	c chan dataoverseersvc.SqlContent,
 	stmt *sql.Stmt,
 	idField string,
 	lastID *int64,
@@ -213,7 +245,7 @@ func findRowsForTask(
 			logger.Log("err", err.Error())
 		}
 
-		res := sqlContent{}
+		res := dataoverseersvc.SqlContent{}
 		for pos, idx := range columns {
 			res[idx] = values[pos].(*repo.MetalScanner).Value
 		}
@@ -225,7 +257,7 @@ func findRowsForTask(
 	return counter, nil
 }
 
-func validateRow(sem <-chan bool, ctx context.Context, reports chan string, c sqlContent) {
+func validateRow(sem <-chan bool, ctx context.Context, reports chan string, c dataoverseersvc.SqlContent) {
 	defer func() { <-sem }()
 
 	logger := ctx.Value("logger").(kitlog.Logger)
@@ -241,6 +273,7 @@ func validateRow(sem <-chan bool, ctx context.Context, reports chan string, c sq
 		}
 	}
 }
+*/
 
 func interruptHandler(errCh chan error) {
 	c := make(chan os.Signal, 1)
